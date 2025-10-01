@@ -1,14 +1,14 @@
 """Neural network models for the DQN agent."""
 from __future__ import annotations
 
-from typing import Iterable, Sequence, Tuple
+from typing import Sequence
 
 import torch
 import torch.nn as nn
 
 
 class DQN(nn.Module):
-    """Feed-forward network used to approximate the Q-function."""
+    """Dueling feed-forward network used to approximate the Q-function."""
 
     def __init__(
         self,
@@ -20,15 +20,39 @@ class DQN(nn.Module):
     ) -> None:
         super().__init__()
 
-        layers: list[nn.Module] = []
+        feature_layers: list[nn.Module] = []
         input_dim = state_dim
         for hidden_dim in hidden_sizes:
-            layers.append(nn.Linear(input_dim, hidden_dim))
-            layers.append(nn.ReLU())
-            layers.append(nn.Dropout(p=dropout))
+            feature_layers.append(nn.Linear(input_dim, hidden_dim))
+            feature_layers.append(nn.ReLU())
+            if dropout > 0:
+                feature_layers.append(nn.Dropout(p=dropout))
             input_dim = hidden_dim
-        layers.append(nn.Linear(input_dim, action_dim))
-        self.network = nn.Sequential(*layers)
+
+        self.feature_extractor = (
+            nn.Sequential(*feature_layers)
+            if feature_layers
+            else nn.Identity()
+        )
+
+        feature_dim = input_dim
+        value_hidden_dim = max(feature_dim // 2, 1)
+        advantage_hidden_dim = max(feature_dim, 1)
+
+        value_layers: list[nn.Module] = [nn.Linear(feature_dim, value_hidden_dim), nn.ReLU()]
+        if dropout > 0:
+            value_layers.append(nn.Dropout(p=dropout))
+        value_layers.append(nn.Linear(value_hidden_dim, 1))
+        self.value_head = nn.Sequential(*value_layers)
+
+        advantage_layers: list[nn.Module] = [
+            nn.Linear(feature_dim, advantage_hidden_dim),
+            nn.ReLU(),
+        ]
+        if dropout > 0:
+            advantage_layers.append(nn.Dropout(p=dropout))
+        advantage_layers.append(nn.Linear(advantage_hidden_dim, action_dim))
+        self.advantage_head = nn.Sequential(*advantage_layers)
 
         self._reset_parameters()
 
@@ -40,4 +64,8 @@ class DQN(nn.Module):
                     nn.init.zeros_(module.bias)
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
-        return self.network(state)
+        features = self.feature_extractor(state)
+        value = self.value_head(features)
+        advantage = self.advantage_head(features)
+        advantage_mean = advantage.mean(dim=1, keepdim=True)
+        return value + advantage - advantage_mean

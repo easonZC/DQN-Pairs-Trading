@@ -47,8 +47,11 @@ class ReplayBuffer:
     def sample(self, batch_size: int):
         transitions = random.sample(self.buffer, batch_size)
         states, actions, rewards, next_states, dones = zip(*transitions)
+
+        states_array = np.asarray(states, dtype=np.float32)
+
         return (
-            torch.tensor(states, dtype=torch.float32),
+            torch.from_numpy(states_array),
             torch.tensor(actions, dtype=torch.long),
             torch.tensor(rewards, dtype=torch.float32),
             next_states,

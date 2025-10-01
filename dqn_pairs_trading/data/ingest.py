@@ -1,4 +1,4 @@
-"""Data ingestion utilities for the pairs trading project.
+﻿"""Data ingestion utilities for the pairs trading project.
 
 This module centralises the notebook logic for pulling and cleaning
 historical equity data so the rest of the pipeline can reuse a single
@@ -149,9 +149,7 @@ def download_sector_data(
 
     downloaded: Dict[str, pd.DataFrame] = {}
     for sector, tickers in universe.sectors.items():
-        data = yf.download(
-            list(tickers), start=start_date, end=end_date, progress=progress
-        )[["Adj Close", "Volume"]]
+        data = yf.download(list(tickers), start=start_date, end=end_date, progress=progress, auto_adjust=False)[["Adj Close", "Volume"]]
         downloaded[sector] = data.dropna(how="all")
     return downloaded
 
@@ -218,3 +216,4 @@ def load_sector_data(
     downloaded = download_sector_data(universe, start_date, end_date, progress=progress)
     cleaned = clean_sector_data(downloaded)
     return add_standardised_prices(cleaned)
+
